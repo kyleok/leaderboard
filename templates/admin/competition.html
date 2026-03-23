@@ -25,6 +25,31 @@
     .form-actions { display: flex; gap: 12px; margin-top: 32px; }
     .ref-info { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
     .ref-upload { margin-top: 8px; }
+    .invite-code-box {
+        background: var(--accent-light);
+        border: 2px solid var(--accent);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 24px;
+    }
+    .invite-code-box h3 {
+        font-family: 'Cormorant Garamond', serif;
+        font-size: 16px;
+        margin: 0 0 8px;
+        color: var(--accent);
+    }
+    .invite-code-display {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: 2px;
+        cursor: pointer;
+        user-select: all;
+    }
+    .invite-code-display:hover {
+        color: var(--accent);
+    }
 </style>
 {% endblock %}
 
@@ -32,6 +57,18 @@
 <div class="container" style="padding: 32px 24px;">
     <div class="form-container">
         <h1 class="page-title">{{ 'Edit' if competition else 'New' }} Competition</h1>
+
+        {% if competition and competition.invite_code %}
+        <div class="invite-code-box">
+            <h3>📋 Invite Code (Share with students)</h3>
+            <div class="invite-code-display" onclick="copyInviteCode(this)" title="Click to copy">
+                {{ competition.invite_code }}
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
+                Click to copy • Students use this to join the competition
+            </div>
+        </div>
+        {% endif %}
 
         <form id="compForm" onsubmit="saveCompetition(event)">
             <div class="form-group">
@@ -196,6 +233,17 @@ function showFormResult(msg, isError) {
     el.textContent = msg;
     el.style.color = isError ? 'var(--danger)' : 'var(--success)';
     el.style.display = '';
+}
+
+function copyInviteCode(el) {
+    const code = el.textContent.trim();
+    navigator.clipboard.writeText(code).then(() => {
+        const originalText = el.textContent;
+        el.textContent = '✓ Copied!';
+        setTimeout(() => {
+            el.textContent = originalText;
+        }, 1500);
+    });
 }
 </script>
 {% endblock %}
