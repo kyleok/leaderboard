@@ -12,6 +12,8 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - leaderboard-data:/app/data
+      - ./templates:/app/templates
+      - ./static:/app/static
     # GPU support: requires nvidia-container-toolkit
     # Uncomment for GPU-accelerated metrics (FID, IS, etc.)
     # runtime: nvidia
