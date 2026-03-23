@@ -25,7 +25,7 @@ from worker import SubmissionWorker, UPLOAD_DIR, REFERENCE_DIR
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-BASE_URL = os.getenv("BASE_URL", "https://leaderboard.lait-lab.com")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8085")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 SECRET_KEY = os.getenv("SECRET_KEY", "leaderboard-default-secret-change-me")
 

@@ -1,6 +1,6 @@
 """
 Local metric backends using PyTorch.
-Runs on bourbon's GPU (or CPU fallback).
+Runs on GPU (CUDA) with CPU fallback.
 """
 import logging
 from pathlib import Path
