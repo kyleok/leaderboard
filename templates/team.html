@@ -15,8 +15,23 @@
 <style>
     .team-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
     .team-info h1 { margin: 0 0 4px; }
-    .invite-code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: var(--bg-alt); padding: 4px 10px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 6px; }
-    .invite-code:hover { border-color: var(--accent); }
+    .invite-code {
+        font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+        font-size: 13px;
+        background: var(--bg-alt);
+        padding: 4px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+    }
+    .invite-code:hover {
+        border-color: var(--accent);
+        box-shadow: 0 2px 8px rgba(255,111,15,0.15);
+    }
     .members-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
     .member-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; background: var(--accent-light); color: var(--accent); font-size: 12px; font-weight: 500; }
 
@@ -30,7 +45,7 @@
     .status-done { background: rgba(74,143,111,0.12); color: var(--success); }
     .status-failed { background: rgba(196,77,77,0.12); color: var(--danger); }
 
-    .score-cell { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    .score-cell { font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace; font-size: 13px; }
 </style>
 {% endblock %}
 
