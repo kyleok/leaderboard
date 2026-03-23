@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit' if competition else 'New' }} Competition{% endblock %}
+
+{% block nav_items %}
+<a href="/">Competitions</a>
+<a href="/admin">Admin</a>
+<a href="#" class="active">{{ 'Edit' if competition else 'New' }} Competition</a>
+{% endblock %}
+
+{% block head %}
+<style>
+    .form-container { max-width: 640px; margin: 0 auto; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 6px; }
+    .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; background: var(--surface); color: var(--text); box-sizing: border-box; }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--accent); outline: none; }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
+    .checkbox-item { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s; }
+    .checkbox-item:hover { border-color: var(--accent); }
+    .checkbox-item.checked { background: var(--accent-light); border-color: var(--accent); }
+    .checkbox-item input { display: none; }
+    .form-actions { display: flex; gap: 12px; margin-top: 32px; }
+    .ref-info { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+    .ref-upload { margin-top: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 32px 24px;">
+    <div class="form-container">
+        <h1 class="page-title">{{ 'Edit' if competition else 'New' }} Competition</h1>
+
+        <form id="compForm" onsubmit="saveCompetition(event)">
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="name" value="{{ competition.name if competition else '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="description">{{ competition.description if competition else '' }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Metrics</label>
+                <div class="checkbox-group" id="metricsGroup">
+                    {% for m in available_metrics %}
+                    <label class="checkbox-item {% if competition and m.name in competition.metrics %}checked{% endif %}">
+                        <input type="checkbox" name="metrics" value="{{ m.name }}"
+                               {% if competition and m.name in competition.metrics %}checked{% endif %}
+                               {% if not competition and m.name == 'fid' %}checked{% endif %}
+                               onchange="this.parentElement.classList.toggle('checked', this.checked)">
+                        {{ m.display_name }}
+                        <span style="font-size:11px;color:var(--text-muted);">({{ 'higher' if m.is_higher_better else 'lower' }} is better)</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Primary Metric (for ranking)</label>
+                <select id="primaryMetric">
+                    {% for m in available_metrics %}
+                    <option value="{{ m.name }}" {% if competition and competition.primary_metric == m.name %}selected{% endif %}>{{ m.display_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="startDate" value="{{ competition.start_date if competition and competition.start_date else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input type="date" id="endDate" value="{{ competition.end_date if competition and competition.end_date else '' }}">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Max Submissions / Day</label>
+                    <input type="number" id="maxSubsDay" value="{{ competition.max_submissions_per_day if competition else 5 }}" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Max Images / Zip</label>
+                    <input type="number" id="maxImages" value="{{ competition.max_images_per_zip if competition else 1000 }}" min="1">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Max Zip Size (MB)</label>
+                <input type="number" id="maxZipMb" value="{{ competition.max_zip_size_mb if competition else 500 }}" min="1">
+            </div>
+
+            {% if competition %}
+            <div class="form-group">
+                <label>Reference Dataset</label>
+                {% if reference %}
+                <div class="ref-info">{{ reference.num_images }} images uploaded</div>
+                {% else %}
+                <div class="ref-info" style="color:var(--warning);">No reference dataset uploaded yet</div>
+                {% endif %}
+                <div class="ref-upload">
+                    <input type="file" id="refFile" accept=".zip">
+                    <button type="button" class="btn btn-secondary btn-small" style="margin-top:8px;" onclick="uploadReference()">Upload Reference</button>
+                </div>
+                <div id="refResult" style="font-size:13px;margin-top:8px;display:none;"></div>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="isActive" {% if competition.is_active %}checked{% endif %}>
+                    Competition is active
+                </label>
+            </div>
+            {% endif %}
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">{{ 'Save Changes' if competition else 'Create Competition' }}</button>
+                <a href="/admin" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+
+        <div id="formResult" style="margin-top:16px;font-size:13px;display:none;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const COMP_ID = {{ competition.id if competition else 'null' }};
+
+function saveCompetition(e) {
+    e.preventDefault();
+    const metrics = [...document.querySelectorAll('input[name="metrics"]:checked')].map(c => c.value);
+    if (!metrics.length) { showFormResult('Select at least one metric.', true); return; }
+
+    const body = {
+        name: document.getElementById('name').value.trim(),
+        description: document.getElementById('description').value.trim(),
+        metrics,
+        primary_metric: document.getElementById('primaryMetric').value,
+        start_date: document.getElementById('startDate').value || null,
+        end_date: document.getElementById('endDate').value || null,
+        max_submissions_per_day: parseInt(document.getElementById('maxSubsDay').value),
+        max_images_per_zip: parseInt(document.getElementById('maxImages').value),
+        max_zip_size_mb: parseInt(document.getElementById('maxZipMb').value),
+    };
+
+    if (COMP_ID) {
+        body.is_active = document.getElementById('isActive').checked;
+    }
+
+    const url = COMP_ID ? `/api/admin/competitions/${COMP_ID}` : '/api/admin/competitions';
+    const method = COMP_ID ? 'PUT' : 'POST';
+
+    fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) })
+        .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+        .then(({ok, data}) => {
+            if (!ok) { showFormResult(data.detail || 'Failed', true); return; }
+            if (!COMP_ID) {
+                window.location = `/admin/competition/${data.id}`;
+            } else {
+                showFormResult('Saved!', false);
+            }
+        });
+}
+
+function uploadReference() {
+    const file = document.getElementById('refFile').files[0];
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+
+    fetch(`/api/admin/competitions/${COMP_ID}/reference`, { method: 'POST', body: form })
+        .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+        .then(({ok, data}) => {
+            const el = document.getElementById('refResult');
+            el.style.display = '';
+            if (!ok) {
+                el.style.color = 'var(--danger)';
+                el.textContent = data.detail || 'Upload failed';
+            } else {
+                el.style.color = 'var(--success)';
+                el.textContent = `Uploaded ${data.num_images} reference images.`;
+            }
+        });
+}
+
+function showFormResult(msg, isError) {
+    const el = document.getElementById('formResult');
+    el.textContent = msg;
+    el.style.color = isError ? 'var(--danger)' : 'var(--success)';
+    el.style.display = '';
+}
+</script>
+{% endblock %}

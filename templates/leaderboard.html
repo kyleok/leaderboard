@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}{% if competition %}{{ competition.name }}{% else %}LAIT Leaderboard{% endif %}{% endblock %}
+
+{% block head %}
+<style>
+    .hero { text-align: center; padding: 32px 0 16px; }
+    .hero h1 { font-size: 2rem; margin-bottom: 4px; }
+    .hero p { color: var(--text-muted); font-size: 15px; }
+
+    .scoreboard { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    .scoreboard th { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 10px 16px; text-align: left; border-bottom: 2px solid var(--border); }
+    .scoreboard td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .scoreboard tbody tr { transition: background 0.15s; cursor: pointer; }
+    .scoreboard tbody tr:hover { background: var(--surface-hover); }
+
+    .rank-cell { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 700; width: 48px; text-align: center; }
+    .rank-1 { color: #d4a017; }
+    .rank-2 { color: #8a8a8a; }
+    .rank-3 { color: #b87333; }
+    .score-cell { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500; }
+    .team-name-cell { font-weight: 500; }
+    .meta-cell { color: var(--text-muted); font-size: 13px; }
+
+    .metric-select { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; }
+    .metric-select:focus { border-color: var(--accent); outline: none; }
+
+    .join-card { background: var(--accent-light); border: 1px solid rgba(61,107,94,0.2); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .join-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 20px; margin-bottom: 16px; }
+    .join-form { display: flex; flex-direction: column; gap: 12px; max-width: 400px; }
+    .join-form input { padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--surface); color: var(--text); font-family: 'DM Sans', sans-serif; }
+    .join-form input:focus { border-color: var(--accent); outline: none; }
+    .join-form .hint { font-size: 12px; color: var(--text-muted); margin-top: -8px; }
+    .join-error { color: var(--danger); font-size: 13px; margin-top: 4px; display: none; }
+
+    .actions-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+
+    .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+    .empty-state h2 { font-family: 'Cormorant Garamond', serif; font-size: 24px; color: var(--text); margin-bottom: 8px; }
+
+    @media (max-width: 640px) {
+        .scoreboard th:nth-child(n+4), .scoreboard td:nth-child(n+4) { display: none; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 24px;">
+
+{% if not competition %}
+    <div class="empty-state">
+        <h2>No Active Competitions</h2>
+        <p>Check back later or contact your instructor.</p>
+    </div>
+{% else %}
+    <div class="hero">
+        <h1>{{ competition.name }}</h1>
+        {% if competition.description %}<p>{{ competition.description }}</p>{% endif %}
+    </div>
+
+    {% if not user %}
+    <!-- Join form for unauthenticated users -->
+    <div class="join-card">
+        <h3>Join this competition</h3>
+        <div class="join-form" id="joinForm">
+            <input type="text" id="inviteCode" placeholder="Invite code (from instructor)" required>
+            <input type="text" id="teamName" placeholder="Team name (new or existing)">
+            <span class="hint">Enter an existing team name to join, or a new name to create one</span>
+            <input type="text" id="displayName" placeholder="Your display name" required>
+            <button class="btn btn-primary" onclick="joinCompetition()">Join</button>
+            <div class="join-error" id="joinError"></div>
+        </div>
+    </div>
+    {% elif not my_team %}
+    <!-- Logged in but no team in this competition -->
+    <div class="join-card">
+        <h3>Join this competition</h3>
+        <div class="join-form" id="joinForm">
+            <input type="text" id="inviteCode" placeholder="Invite code (from instructor)" required>
+            <input type="text" id="teamName" placeholder="Team name (new or existing)">
+            <span class="hint">Enter an existing team name to join, or a new name to create one</span>
+            <input type="hidden" id="displayName" value="{{ user.display_name }}">
+            <button class="btn btn-primary" onclick="joinCompetition()">Join</button>
+            <div class="join-error" id="joinError"></div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="actions-bar">
+        <div>
+            {% if competition.metrics | length > 1 %}
+            <select class="metric-select" id="metricSelect" onchange="changeMetric(this.value)">
+                {% for m in competition.metrics %}
+                <option value="{{ m }}" {% if m == primary_metric %}selected{% endif %}>{{ m | upper }}</option>
+                {% endfor %}
+            </select>
+            {% elif primary_metric %}
+            <span style="font-size:13px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">{{ primary_metric | upper }}</span>
+            {% endif %}
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+            {% if my_team %}
+            <a href="/c/{{ competition.id }}/upload" class="btn btn-primary btn-small">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                Upload
+            </a>
+            <a href="/c/{{ competition.id }}/team/{{ my_team.id }}" class="btn btn-secondary btn-small">My Team</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+        {% if leaderboard %}
+        <table class="scoreboard">
+            <thead>
+                <tr>
+                    <th style="width:48px;">#</th>
+                    <th>Team</th>
+                    <th>Score</th>
+                    <th>Submissions</th>
+                    <th>Last Upload</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in leaderboard %}
+                <tr onclick="window.location='/c/{{ competition.id }}/team/{{ entry.team_id }}'">
+                    <td class="rank-cell {% if loop.index <= 3 %}rank-{{ loop.index }}{% endif %}">{{ loop.index }}</td>
+                    <td class="team-name-cell">{{ entry.team_name }}</td>
+                    <td class="score-cell">{{ "%.4f" | format(entry.best_score) }}</td>
+                    <td class="meta-cell">{{ entry.num_submissions }}</td>
+                    <td class="meta-cell">{{ entry.last_submission[:16] if entry.last_submission else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <p>No submissions yet. Be the first!</p>
+        </div>
+        {% endif %}
+    </div>
+{% endif %}
+
+</div>
+
+<script>
+{% if competition %}
+// Auto-refresh leaderboard every 10s
+setInterval(async () => {
+    try {
+        const metric = document.getElementById('metricSelect')?.value || '{{ primary_metric }}';
+        const resp = await fetch('/api/leaderboard/{{ competition.id }}?metric=' + metric);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        // Simple reload for now
+        if (data.leaderboard && data.leaderboard.length > 0) {
+            location.reload();
+        }
+    } catch(e) {}
+}, 10000);
+
+function changeMetric(metric) {
+    const url = new URL(window.location);
+    url.searchParams.set('metric', metric);
+    window.location = url;
+}
+
+async function joinCompetition() {
+    const inviteCode = document.getElementById('inviteCode').value.trim();
+    const teamName = document.getElementById('teamName').value.trim();
+    const displayName = document.getElementById('displayName').value.trim();
+    const errorEl = document.getElementById('joinError');
+
+    if (!inviteCode || !teamName || !displayName) {
+        errorEl.textContent = 'All fields are required.';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/join', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({invite_code: inviteCode, team_name: teamName, display_name: displayName})
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+            errorEl.textContent = data.detail || 'Failed to join.';
+            errorEl.style.display = 'block';
+            return;
+        }
+        location.reload();
+    } catch(e) {
+        errorEl.textContent = 'Network error. Try again.';
+        errorEl.style.display = 'block';
+    }
+}
+{% endif %}
+</script>
+{% endblock %}

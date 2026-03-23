@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Submissions — {{ competition.name }}{% endblock %}
+
+{% block nav_items %}
+<a href="/">Competitions</a>
+<a href="/admin">Admin</a>
+<a href="/admin/competition/{{ competition.id }}">{{ competition.name }}</a>
+<a href="#" class="active">Submissions</a>
+{% endblock %}
+
+{% block head %}
+<style>
+    .admin-sub-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .sub-table { width: 100%; border-collapse: collapse; }
+    .sub-table th { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 10px 12px; text-align: left; border-bottom: 2px solid var(--border); }
+    .sub-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .sub-table tbody tr:hover { background: var(--surface-hover); }
+
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .status-queued { background: var(--accent-light); color: var(--accent); }
+    .status-processing { background: rgba(196,155,77,0.12); color: var(--warning); }
+    .status-done { background: rgba(74,143,111,0.12); color: var(--success); }
+    .status-failed { background: rgba(196,77,77,0.12); color: var(--danger); }
+
+    .action-btn { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: 11px; cursor: pointer; transition: all 0.15s; }
+    .action-btn:hover { border-color: var(--accent); color: var(--text); }
+    .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+    .team-filter { margin-bottom: 16px; }
+    .team-filter select { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 32px 24px;">
+    <div class="admin-sub-header">
+        <h1 class="page-title">Submissions: {{ competition.name }}</h1>
+        <div style="display:flex;gap:8px;">
+            {% for team in teams %}
+            <button class="action-btn {% if team.is_disqualified %}danger{% endif %}" onclick="toggleDQ({{ team.id }}, {{ 'false' if team.is_disqualified else 'true' }})" title="{{ 'Requalify' if team.is_disqualified else 'Disqualify' }} {{ team.name }}">
+                {{ team.name }} {% if team.is_disqualified %}(DQ){% endif %}
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow-x:auto;">
+        <table class="sub-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Team</th>
+                    <th>Status</th>
+                    <th>Scores</th>
+                    <th>Images</th>
+                    <th>By</th>
+                    <th>Time</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in submissions %}
+                <tr>
+                    <td>{{ sub.id }}</td>
+                    <td>{{ sub.team_name }}</td>
+                    <td><span class="status-badge status-{{ sub.status }}">{{ sub.status }}</span></td>
+                    <td style="font-family:'JetBrains Mono',monospace;font-size:12px;">
+                        {% if sub.scores %}
+                            {% for name, info in sub.scores.items() %}{{ name | upper }}: {{ "%.4f" | format(info.score) }}{% if not loop.last %}, {% endif %}{% endfor %}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ sub.num_images or '-' }}</td>
+                    <td class="text-muted">{{ sub.submitted_by }}</td>
+                    <td class="text-muted">{{ sub.submitted_at[:16] if sub.submitted_at else '-' }}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="action-btn" onclick="rerunSub({{ sub.id }})" title="Re-run scoring">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+                        </button>
+                        <a href="/api/admin/submissions/{{ sub.id }}/download" class="action-btn" title="Download">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                        </a>
+                        <button class="action-btn danger" onclick="deleteSub({{ sub.id }})" title="Delete">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not submissions %}
+                <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">No submissions yet.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function rerunSub(id) {
+    fetch(`/api/admin/submissions/${id}/rerun`, {method:'POST'})
+        .then(r => r.json())
+        .then(() => location.reload());
+}
+
+function deleteSub(id) {
+    if (!confirm('Delete this submission?')) return;
+    fetch(`/api/admin/submissions/${id}`, {method:'DELETE'})
+        .then(r => r.json())
+        .then(() => location.reload());
+}
+
+function toggleDQ(teamId, disqualify) {
+    const action = disqualify ? 'Disqualify' : 'Requalify';
+    if (!confirm(`${action} this team?`)) return;
+    fetch(`/api/admin/teams/${teamId}/disqualify`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({disqualify})
+    }).then(() => location.reload());
+}
+</script>
+{% endblock %}

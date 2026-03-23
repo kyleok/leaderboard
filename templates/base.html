@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LAIT Leaderboard{% endblock %}</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="logo">Leaderboard</a>
+            <div class="header-right">
+                {% if user %}
+                <span class="user-label">{{ user.display_name }}</span>
+                {% if user.is_admin %}
+                <a href="/admin" class="btn btn-small btn-secondary">Admin</a>
+                {% endif %}
+                <a href="/logout" class="btn btn-small btn-secondary">Logout</a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <span>LAIT Lab — depuis 2021</span>
+    </footer>
+</body>
+</html>

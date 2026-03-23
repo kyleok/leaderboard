@@ -1,0 +1,20 @@
+services:
+  leaderboard:
+    build: .
+    container_name: leaderboard
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      - BASE_URL=https://leaderboard.lait-lab.com
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - leaderboard-data:/app/data
+    # GPU support: requires nvidia-container-toolkit
+    # Uncomment for GPU-accelerated metrics (FID, IS, etc.)
+    # runtime: nvidia
+
+volumes:
+  leaderboard-data:

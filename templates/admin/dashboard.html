@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Admin{% endblock %}
+
+{% block nav_items %}
+<a href="/">Competitions</a>
+<a href="/admin" class="active">Admin</a>
+{% endblock %}
+
+{% block head %}
+<style>
+    .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .comp-list { display: flex; flex-direction: column; gap: 12px; }
+    .comp-card { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; flex-wrap: wrap; gap: 12px; }
+    .comp-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 18px; margin: 0 0 4px; }
+    .comp-meta { display: flex; gap: 16px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
+    .comp-actions { display: flex; gap: 8px; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: var(--accent-light); color: var(--accent); }
+    .badge--inactive { background: rgba(196,77,77,0.08); color: var(--danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 32px 24px;">
+    <div class="admin-header">
+        <h1 class="page-title">Admin Panel</h1>
+        <a href="/admin/competition/new" class="btn btn-primary btn-small">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Competition
+        </a>
+    </div>
+
+    <div class="comp-list">
+        {% for comp in competitions %}
+        <div class="card comp-card">
+            <div>
+                <h3>{{ comp.name }}</h3>
+                <div class="comp-meta">
+                    <span class="badge {% if not comp.is_active %}badge--inactive{% endif %}">{{ 'Active' if comp.is_active else 'Inactive' }}</span>
+                    <span>Metrics: {{ comp.metrics | join(', ') | upper }}</span>
+                    {% if comp.start_date %}<span>{{ comp.start_date }} &mdash; {{ comp.end_date or '...' }}</span>{% endif %}
+                    <span>{{ comp.max_submissions_per_day }} subs/day</span>
+                </div>
+            </div>
+            <div class="comp-actions">
+                <a href="/admin/competition/{{ comp.id }}" class="btn btn-secondary btn-small">Edit</a>
+                <a href="/admin/competition/{{ comp.id }}/submissions" class="btn btn-secondary btn-small">Submissions</a>
+                <a href="/c/{{ comp.id }}" class="btn btn-secondary btn-small">View</a>
+            </div>
+        </div>
+        {% endfor %}
+        {% if not competitions %}
+        <div class="empty-state">
+            <p style="color:var(--text-muted);">No competitions yet. Create one to get started.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

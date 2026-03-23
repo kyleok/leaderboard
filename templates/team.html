@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}{{ team.name }}{% endblock %}
+
+{% block nav_items %}
+<a href="/">Competitions</a>
+<a href="/c/{{ competition.id }}">Leaderboard</a>
+<a href="/c/{{ competition.id }}/team/{{ team.id }}" class="active">{{ team.name }}</a>
+{% if is_member %}
+<a href="/c/{{ competition.id }}/upload">Upload</a>
+{% endif %}
+{% endblock %}
+
+{% block head %}
+<style>
+    .team-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .team-info h1 { margin: 0 0 4px; }
+    .invite-code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: var(--bg-alt); padding: 4px 10px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); display: inline-flex; align-items: center; gap: 6px; }
+    .invite-code:hover { border-color: var(--accent); }
+    .members-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .member-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; background: var(--accent-light); color: var(--accent); font-size: 12px; font-weight: 500; }
+
+    .submissions-table { width: 100%; border-collapse: collapse; }
+    .submissions-table th { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 10px 16px; text-align: left; border-bottom: 2px solid var(--border); }
+    .submissions-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+
+    .status-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .status-queued { background: var(--accent-light); color: var(--accent); }
+    .status-processing { background: rgba(196,155,77,0.12); color: var(--warning); }
+    .status-done { background: rgba(74,143,111,0.12); color: var(--success); }
+    .status-failed { background: rgba(196,77,77,0.12); color: var(--danger); }
+
+    .score-cell { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 32px 24px;">
+    <div class="team-header">
+        <div class="team-info">
+            <h1 class="page-title">{{ team.name }}</h1>
+            {% if team.description %}<p class="text-muted">{{ team.description }}</p>{% endif %}
+            <div class="members-list">
+                {% for m in team.members %}
+                <span class="member-chip">{{ m.display_name }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+            {% if is_member %}
+            <span class="invite-code" onclick="copyInvite()" title="Click to copy invite code">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                {{ team.invite_code }}
+            </span>
+            <a href="/c/{{ competition.id }}/upload" class="btn btn-primary btn-small">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+                Upload
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card" style="padding:0; overflow:hidden;">
+        <table class="submissions-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Status</th>
+                    <th>Scores</th>
+                    <th>Images</th>
+                    <th>Submitted by</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sub in submissions %}
+                <tr id="sub-{{ sub.id }}">
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        <span class="status-badge status-{{ sub.status }}">{{ sub.status }}</span>
+                        {% if sub.status == 'processing' and sub.progress_total > 0 %}
+                        <span class="text-muted" style="font-size:11px;margin-left:4px;">{{ sub.progress_current }}/{{ sub.progress_total }}</span>
+                        {% endif %}
+                        {% if sub.error_message %}<div style="color:var(--danger);font-size:12px;margin-top:2px;">{{ sub.error_message[:80] }}</div>{% endif %}
+                    </td>
+                    <td class="score-cell">
+                        {% if sub.scores %}
+                            {% for name, info in sub.scores.items() %}
+                            <span title="{{ name | upper }}">{{ name | upper }}: {{ "%.4f" | format(info.score) }}</span>{% if not loop.last %}<br>{% endif %}
+                            {% endfor %}
+                        {% else %}-{% endif %}
+                    </td>
+                    <td>{{ sub.num_images or '-' }}</td>
+                    <td class="text-muted">{{ sub.submitted_by }}</td>
+                    <td class="text-muted" style="font-size:13px;">{{ sub.submitted_at[:16] if sub.submitted_at else '-' }}</td>
+                </tr>
+                {% endfor %}
+                {% if not submissions %}
+                <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted);">No submissions yet.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyInvite() {
+    navigator.clipboard.writeText('{{ team.invite_code }}');
+}
+
+// Poll for active submissions
+const activeSubs = [{% for s in submissions %}{% if s.status in ('queued', 'processing') %}{{ s.id }},{% endif %}{% endfor %}];
+if (activeSubs.length) {
+    const poll = setInterval(() => {
+        let pending = false;
+        activeSubs.forEach(id => {
+            fetch(`/api/submissions/${id}/status`)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'queued' || d.status === 'processing') pending = true;
+                    if (d.status === 'done' || d.status === 'failed') location.reload();
+                });
+        });
+        if (!pending && activeSubs.length) clearInterval(poll);
+    }, 3000);
+}
+</script>
+{% endblock %}

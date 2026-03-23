@@ -1,0 +1,51 @@
+/* ===== Cafe au LAIT — Unified Dark Mode ===== */
+/* Include in all services. Requires theme.js for toggle behavior. */
+
+:root.dark {
+    /* Backgrounds */
+    --bg: #1c1612;
+    --bg-alt: #16120e;
+    --surface: #271f19;
+    --surface-hover: #302720;
+
+    /* Borders */
+    --border: #3a302a;
+    --border-accent: #5a9b8a;
+
+    /* Text */
+    --text: #d4c8ba;
+    --text-muted: #8a7e72;
+    --text-light: #6a5e52;
+
+    /* Accents */
+    --accent: #5a9b8a;
+    --accent-light: rgba(90,155,138,0.12);
+    --accent-dim: rgba(90,155,138,0.12);
+    --accent-hover: #4a8b7a;
+    --espresso: #c9b99a;
+    --amber: #c4915c;
+
+    /* Status */
+    --danger: #d45757;
+    --danger-light: rgba(212,87,87,0.12);
+    --success: #5aaf7f;
+    --success-light: rgba(90,175,127,0.12);
+    --warning: #c49b4d;
+
+    color-scheme: dark;
+}
+
+/* Grain overlay: subtler in dark mode */
+:root.dark body::before {
+    opacity: 0.015 !important;
+}
+
+/* Scrollbar: dark mode */
+:root.dark ::-webkit-scrollbar-track { background: var(--bg); }
+:root.dark ::-webkit-scrollbar-thumb { background: var(--border); }
+:root.dark ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Chart.js and images: slight brightness adjustment */
+:root.dark img:not([src*="avatar"]):not([src*="github"]) {
+    opacity: 0.92;
+}

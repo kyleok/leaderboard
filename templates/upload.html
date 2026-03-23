@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Upload — {{ competition.name }}{% endblock %}
+
+{% block nav_items %}
+<a href="/">Competitions</a>
+<a href="/c/{{ competition.id }}">Leaderboard</a>
+<a href="/c/{{ competition.id }}/team/{{ team.id }}">{{ team.name }}</a>
+<a href="/c/{{ competition.id }}/upload" class="active">Upload</a>
+{% endblock %}
+
+{% block head %}
+<style>
+    .upload-container { max-width: 640px; margin: 0 auto; }
+    .upload-info { margin-bottom: 24px; }
+    .upload-info .limits { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
+    .upload-info .limit-item { font-size: 13px; color: var(--text-muted); }
+    .upload-info .limit-item strong { color: var(--text); }
+
+    .drop-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 48px 24px; text-align: center; transition: all 0.2s ease; cursor: pointer; background: var(--surface); }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: var(--accent-light); }
+    .drop-zone svg { color: var(--text-light); margin-bottom: 12px; }
+    .drop-zone h3 { font-family: 'Cormorant Garamond', serif; font-size: 20px; margin-bottom: 8px; }
+    .drop-zone p { color: var(--text-muted); font-size: 13px; }
+
+    .file-selected { display: none; margin-top: 16px; padding: 16px; border-radius: 8px; background: var(--bg-alt); border: 1px solid var(--border); }
+    .file-selected.show { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .file-name { font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+    .file-size { color: var(--text-muted); font-size: 12px; }
+
+    .progress-container { display: none; margin-top: 16px; }
+    .progress-container.show { display: block; }
+    .progress-bar-bg { background: var(--bg-alt); border-radius: 8px; height: 8px; overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--accent); border-radius: 8px; transition: width 0.3s ease; width: 0%; }
+    .progress-text { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+    .upload-result { display: none; margin-top: 16px; padding: 16px; border-radius: 8px; }
+    .upload-result.show { display: block; }
+    .upload-result.success { background: rgba(74,143,111,0.08); border: 1px solid rgba(74,143,111,0.2); }
+    .upload-result.error { background: rgba(196,77,77,0.08); border: 1px solid rgba(196,77,77,0.2); color: var(--danger); }
+
+    .rate-info { font-size: 13px; color: var(--text-muted); margin-top: 24px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 32px 24px;">
+    <div class="upload-container">
+        <div class="upload-info">
+            <h1 class="page-title">Upload Submission</h1>
+            <p class="text-muted">{{ competition.name }} &mdash; {{ team.name }}</p>
+            <div class="limits">
+                <span class="limit-item">Max size: <strong>{{ competition.max_zip_size_mb }}MB</strong></span>
+                <span class="limit-item">Max images: <strong>{{ competition.max_images_per_zip }}</strong></span>
+                <span class="limit-item">Formats: <strong>PNG, JPG, JPEG</strong></span>
+            </div>
+        </div>
+
+        <input type="file" id="fileInput" accept=".zip" style="display:none;" onchange="handleFile(this.files[0])">
+
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <h3>Drop your zip file here</h3>
+            <p>or click to browse</p>
+        </div>
+
+        <div class="file-selected" id="fileSelected">
+            <div>
+                <div class="file-name" id="fileName"></div>
+                <div class="file-size" id="fileSize"></div>
+            </div>
+            <button class="btn btn-primary btn-small" id="uploadBtn" onclick="uploadFile()">Upload</button>
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar-bg"><div class="progress-bar" id="progressBar"></div></div>
+            <div class="progress-text" id="progressText">Uploading...</div>
+        </div>
+
+        <div class="upload-result" id="uploadResult"></div>
+
+        <div class="rate-info">
+            {{ today_count }} of {{ competition.max_submissions_per_day }} submissions used today.
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const COMP_ID = {{ competition.id }};
+const MAX_SIZE = {{ competition.max_zip_size_mb }} * 1024 * 1024;
+let selectedFile = null;
+
+const dropZone = document.getElementById('dropZone');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+
+function handleFile(file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+        showResult('Only .zip files are accepted.', true);
+        return;
+    }
+    if (file.size > MAX_SIZE) {
+        showResult(`File too large (${formatSize(file.size)}). Max: {{ competition.max_zip_size_mb }}MB.`, true);
+        return;
+    }
+    selectedFile = file;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = formatSize(file.size);
+    document.getElementById('fileSelected').classList.add('show');
+    document.getElementById('uploadResult').classList.remove('show');
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function uploadFile() {
+    if (!selectedFile) return;
+    const form = new FormData();
+    form.append('competition_id', COMP_ID);
+    form.append('file', selectedFile);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/submissions');
+
+    const progress = document.getElementById('progressContainer');
+    const bar = document.getElementById('progressBar');
+    const text = document.getElementById('progressText');
+    progress.classList.add('show');
+    document.getElementById('uploadBtn').disabled = true;
+
+    xhr.upload.onprogress = e => {
+        if (e.lengthComputable) {
+            const pct = Math.round(e.loaded / e.total * 100);
+            bar.style.width = pct + '%';
+            text.textContent = `Uploading... ${pct}%`;
+        }
+    };
+
+    xhr.onload = () => {
+        progress.classList.remove('show');
+        document.getElementById('uploadBtn').disabled = false;
+        try {
+            const data = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) {
+                const pos = data.queue_position;
+                showResult(`Submission uploaded! Queue position: ${pos + 1}. Redirecting...`, false);
+                setTimeout(() => {
+                    window.location = '/c/{{ competition.id }}/team/{{ team.id }}';
+                }, 1500);
+            } else {
+                showResult(data.detail || 'Upload failed.', true);
+            }
+        } catch (e) {
+            showResult('Upload failed: ' + xhr.statusText, true);
+        }
+    };
+
+    xhr.onerror = () => {
+        progress.classList.remove('show');
+        document.getElementById('uploadBtn').disabled = false;
+        showResult('Upload failed: network error.', true);
+    };
+
+    xhr.send(form);
+}
+
+function showResult(msg, isError) {
+    const el = document.getElementById('uploadResult');
+    el.textContent = msg;
+    el.className = 'upload-result show ' + (isError ? 'error' : 'success');
+}
+</script>
+{% endblock %}
