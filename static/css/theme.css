@@ -1,4 +1,4 @@
-/* ===== Cafe au LAIT — Unified Dark Mode ===== */
+/* ===== Orange Beige — Unified Dark Mode ===== */
 /* Include in all services. Requires theme.js for toggle behavior. */
 
 :root.dark {
@@ -6,11 +6,11 @@
     --bg: #1c1612;
     --bg-alt: #16120e;
     --surface: #271f19;
-    --surface-hover: #302720;
+    --surface-hover: rgba(255,111,15,0.05);
 
     /* Borders */
     --border: #3a302a;
-    --border-accent: #5a9b8a;
+    --border-accent: #ff9a4d;
 
     /* Text */
     --text: #d4c8ba;
@@ -18,19 +18,23 @@
     --text-light: #6a5e52;
 
     /* Accents */
-    --accent: #5a9b8a;
-    --accent-light: rgba(90,155,138,0.12);
-    --accent-dim: rgba(90,155,138,0.12);
-    --accent-hover: #4a8b7a;
-    --espresso: #c9b99a;
-    --amber: #c4915c;
+    --accent: #ff9a4d;
+    --accent-light: rgba(255,154,77,0.12);
+    --accent-hover: #ffb570;
+    --accent2: #ff6f0f;
+    --accent3: #ff4500;
+
+    /* Medal Colors */
+    --gold: #f5a623;
+    --silver: #8a9bb0;
+    --bronze: #b07d4a;
 
     /* Status */
-    --danger: #d45757;
-    --danger-light: rgba(212,87,87,0.12);
+    --danger: #ff6b6b;
+    --danger-light: rgba(255,107,107,0.12);
     --success: #5aaf7f;
     --success-light: rgba(90,175,127,0.12);
-    --warning: #c49b4d;
+    --warning: #ff9a4d;
 
     color-scheme: dark;
 }

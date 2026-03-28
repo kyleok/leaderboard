@@ -5,15 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}LAIT Leaderboard{% endblock %}</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/css/theme.css">
     {% block head %}{% endblock %}
 </head>
 <body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+
     <header class="site-header">
         <div class="header-inner">
             <a href="/" class="logo">Leaderboard</a>
             <div class="header-right">
+                {% block header_right %}
                 {% if user %}
                 <span class="user-label">{{ user.display_name }}</span>
                 {% if user.is_admin %}
@@ -21,6 +27,7 @@
                 {% endif %}
                 <a href="/logout" class="btn btn-small btn-secondary">Logout</a>
                 {% endif %}
+                {% endblock %}
             </div>
         </div>
     </header>
@@ -32,5 +39,8 @@
     <footer class="site-footer">
         <span>LAIT Lab — depuis 2021</span>
     </footer>
+
+    <script src="/static/js/theme.js"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

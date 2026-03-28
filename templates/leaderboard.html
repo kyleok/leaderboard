@@ -11,21 +11,30 @@
     .scoreboard { width: 100%; border-collapse: collapse; margin-top: 16px; }
     .scoreboard th { font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 10px 16px; text-align: left; border-bottom: 2px solid var(--border); }
     .scoreboard td { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
-    .scoreboard tbody tr { transition: background 0.15s; cursor: pointer; }
+    .scoreboard tbody tr {
+        transition: background 0.15s;
+        cursor: pointer;
+        animation: rowIn 0.3s ease-out backwards;
+    }
+    .scoreboard tbody tr:nth-child(1) { animation-delay: 0.05s; }
+    .scoreboard tbody tr:nth-child(2) { animation-delay: 0.10s; }
+    .scoreboard tbody tr:nth-child(3) { animation-delay: 0.15s; }
+    .scoreboard tbody tr:nth-child(4) { animation-delay: 0.20s; }
+    .scoreboard tbody tr:nth-child(5) { animation-delay: 0.25s; }
     .scoreboard tbody tr:hover { background: var(--surface-hover); }
 
     .rank-cell { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 700; width: 48px; text-align: center; }
-    .rank-1 { color: #d4a017; }
-    .rank-2 { color: #8a8a8a; }
-    .rank-3 { color: #b87333; }
-    .score-cell { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500; }
+    .rank-1 { color: var(--gold); }
+    .rank-2 { color: var(--silver); }
+    .rank-3 { color: var(--bronze); }
+    .score-cell { font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace; font-size: 13px; font-weight: 500; }
     .team-name-cell { font-weight: 500; }
     .meta-cell { color: var(--text-muted); font-size: 13px; }
 
     .metric-select { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; }
     .metric-select:focus { border-color: var(--accent); outline: none; }
 
-    .join-card { background: var(--accent-light); border: 1px solid rgba(61,107,94,0.2); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .join-card { background: var(--accent-light); border: 1px solid rgba(255,111,15,0.2); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
     .join-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 20px; margin-bottom: 16px; }
     .join-form { display: flex; flex-direction: column; gap: 12px; max-width: 400px; }
     .join-form input { padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--surface); color: var(--text); font-family: 'DM Sans', sans-serif; }
