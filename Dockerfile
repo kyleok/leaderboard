@@ -3,26 +3,13 @@ FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04
 WORKDIR /app
 
 # Install Python and system deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv \
-    libgl1 libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/bin/python3 /usr/bin/python
+RUN apt-get update && apt-get install -y --no-install-recommends     python3 python3-pip python3-venv     libgl1 libglib2.0-0     && rm -rf /var/lib/apt/lists/*     && ln -sf /usr/bin/python3 /usr/bin/python
 
 # Install PyTorch with CUDA support
-RUN pip install --no-cache-dir --break-system-packages \
-    torch torchvision --extra-index-url https://download.pytorch.org/whl/cu126
+RUN pip install --no-cache-dir --break-system-packages     torch torchvision --extra-index-url https://download.pytorch.org/whl/cu126
 
 # Install remaining Python packages
-RUN pip install --no-cache-dir --break-system-packages \
-    fastapi \
-    uvicorn \
-    python-multipart \
-    pydantic \
-    jinja2 \
-    Pillow \
-    torchmetrics \
-    lpips
+RUN pip install --no-cache-dir --break-system-packages     fastapi     uvicorn     python-multipart     pydantic     jinja2     Pillow     torchmetrics     torch-fidelity     top-pr
 
 # Copy app code
 COPY main.py .
