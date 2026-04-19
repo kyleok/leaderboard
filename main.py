@@ -245,14 +245,14 @@ async def api_join(request: Request):
 
     if existing_team:
         # Join existing team
-        ok = db.join_team(existing_team["id"], display_name)
+        ok = db.join_team(existing_team["id"], display_name, email=email)
         if not ok:
             raise HTTPException(status_code=400, detail="Already a member of this team")
         team = db.get_team(existing_team["id"])
     else:
         # Create new team
         try:
-            team = db.create_team(competition_id, team_name, "", display_name)
+            team = db.create_team(competition_id, team_name, "", display_name, creator_email=email)
         except Exception as e:
             if "UNIQUE" in str(e):
                 raise HTTPException(status_code=400, detail="Team name already taken")

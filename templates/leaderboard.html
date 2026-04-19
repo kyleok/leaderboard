@@ -76,6 +76,7 @@
             <input type="text" id="teamName" placeholder="Team name (new or existing)">
             <span class="hint">Enter an existing team name to join, or a new name to create one</span>
             <input type="text" id="displayName" placeholder="Your display name" required>
+            <input type="email" id="emailAddr" placeholder="Email (optional, for result notifications)">
             <button class="btn btn-primary" onclick="joinCompetition()">Join</button>
             <div class="join-error" id="joinError"></div>
         </div>
@@ -89,6 +90,7 @@
             <input type="text" id="teamName" placeholder="Team name (new or existing)">
             <span class="hint">Enter an existing team name to join, or a new name to create one</span>
             <input type="hidden" id="displayName" value="{{ user.display_name }}">
+            <input type="email" id="emailAddr" placeholder="Email (optional, for result notifications)">
             <button class="btn btn-primary" onclick="joinCompetition()">Join</button>
             <div class="join-error" id="joinError"></div>
         </div>
@@ -178,6 +180,7 @@ async function joinCompetition() {
     const inviteCode = document.getElementById('inviteCode').value.trim();
     const teamName = document.getElementById('teamName').value.trim();
     const displayName = document.getElementById('displayName').value.trim();
+    const email = document.getElementById('emailAddr')?.value.trim() || '';
     const errorEl = document.getElementById('joinError');
 
     if (!inviteCode || !teamName || !displayName) {
@@ -187,10 +190,12 @@ async function joinCompetition() {
     }
 
     try {
+        const body = {invite_code: inviteCode, team_name: teamName, display_name: displayName};
+        if (email) body.email = email;
         const resp = await fetch('/api/join', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({invite_code: inviteCode, team_name: teamName, display_name: displayName})
+            body: JSON.stringify(body)
         });
         const data = await resp.json();
         if (!resp.ok) {

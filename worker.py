@@ -139,8 +139,9 @@ class SubmissionWorker:
         logger.info(f"Submission {submission_id} processed ({num_images} images, "
                      f"{len(metrics_to_run)} metrics)")
 
-        # Cleanup extracted files (keep zip)
+        # Cleanup extracted files, keep only latest zip per team
         self._cleanup(extract_path)
+        self._cleanup_old_zips(submission["team_id"], submission["competition_id"], submission["file_path"])
 
     @staticmethod
     def _extract_zip(zip_path: Path, extract_path: Path):

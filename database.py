@@ -74,6 +74,7 @@ def init_db():
                 id INTEGER PRIMARY KEY,
                 team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
                 display_name TEXT NOT NULL,
+                email TEXT,
                 joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(team_id, display_name)
             );
@@ -103,6 +104,11 @@ def init_db():
                 UNIQUE(submission_id, metric_name)
             );
         """)
+    # migrate: add email column if not exists
+        try:
+            db.execute("ALTER TABLE team_members ADD COLUMN email TEXT")
+        except Exception:
+            pass
     logger.info(f"Database initialized at {DB_PATH}")
 
 
@@ -208,7 +214,7 @@ def update_cached_features(ref_id: int, cached_features_path: str):
 # --- Team CRUD ---
 
 def create_team(competition_id: int, name: str, description: str = "",
-                creator_name: str = None) -> dict:
+                creator_name: str = None, creator_email: str = None) -> dict:
     with get_db() as db:
         cur = db.execute(
             "INSERT INTO teams (competition_id, name, description) VALUES (?, ?, ?)",
@@ -217,8 +223,8 @@ def create_team(competition_id: int, name: str, description: str = "",
         team_id = cur.lastrowid
         if creator_name:
             db.execute(
-                "INSERT INTO team_members (team_id, display_name) VALUES (?, ?)",
-                (team_id, creator_name)
+                "INSERT INTO team_members (team_id, display_name, email) VALUES (?, ?, ?)",
+                (team_id, creator_name, creator_email)
             )
     return get_team(team_id)
 
@@ -254,12 +260,12 @@ def get_teams(competition_id: int, include_disqualified: bool = False) -> list[d
         return result
 
 
-def join_team(team_id: int, display_name: str) -> bool:
+def join_team(team_id: int, display_name: str, email: str = None) -> bool:
     with get_db() as db:
         try:
             db.execute(
-                "INSERT INTO team_members (team_id, display_name) VALUES (?, ?)",
-                (team_id, display_name)
+                "INSERT INTO team_members (team_id, display_name, email) VALUES (?, ?, ?)",
+                (team_id, display_name, email)
             )
             return True
         except sqlite3.IntegrityError:
