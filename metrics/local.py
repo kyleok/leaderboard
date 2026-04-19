@@ -241,7 +241,7 @@ class TopPRMetric(MetricBackend):
         result = compute_top_pr(real_features=real_features, fake_features=fake_features, f1_score=True)
         fidelity = float(result.get("fidelity", 0.0))
         diversity = float(result.get("diversity", 0.0))
-        f1 = float(result.get("f1", 0.0))
+        f1 = float(result.get("Top_F1", 0.0))
         logger.info(f"TopPR: fidelity={fidelity:.4f} diversity={diversity:.4f} f1={f1:.4f}")
         return MetricResult(name=self.name, score=f1, is_higher_better=self.is_higher_better,
                             metadata={"fidelity": fidelity, "diversity": diversity,
