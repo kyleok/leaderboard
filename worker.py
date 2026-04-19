@@ -20,6 +20,7 @@ from database import (
 from metrics.registry import MetricRegistry
 
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://n8n:5678/webhook/submission-done")
+MAX_CONCURRENT_WORKERS = int(os.getenv("MAX_CONCURRENT_WORKERS", "2"))
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +36,22 @@ class SubmissionWorker:
     def __init__(self, registry: MetricRegistry):
         self.registry = registry
         self.queue: asyncio.Queue[int] = asyncio.Queue()
-        self._task: asyncio.Task | None = None
+        self._tasks: list[asyncio.Task] = []
+        self._gpu_sem: asyncio.Semaphore | None = None
 
     def start(self):
-        self._task = asyncio.create_task(self._run())
-        logger.info("Submission worker started")
+        self._gpu_sem = asyncio.Semaphore(MAX_CONCURRENT_WORKERS)
+        self._tasks = [asyncio.create_task(self._run()) for _ in range(MAX_CONCURRENT_WORKERS)]
+        logger.info(f"Submission worker started ({MAX_CONCURRENT_WORKERS} concurrent slots)")
 
     async def stop(self):
-        if self._task:
-            self._task.cancel()
+        for task in self._tasks:
+            task.cancel()
             try:
-                await self._task
+                await task
             except asyncio.CancelledError:
                 pass
+        self._tasks.clear()
         logger.info("Submission worker stopped")
 
     async def enqueue(self, submission_id: int):
@@ -58,7 +62,8 @@ class SubmissionWorker:
         while True:
             submission_id = await self.queue.get()
             try:
-                await self._process(submission_id)
+                async with self._gpu_sem:
+                    await self._process(submission_id)
             except Exception as e:
                 logger.error(f"Submission {submission_id} failed: {e}", exc_info=True)
                 update_submission_status(submission_id, "failed", error_message=str(e)[:500])
