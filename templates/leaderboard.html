@@ -101,6 +101,7 @@
         <div>
             {% if competition.metrics | length > 1 %}
             <select class="metric-select" id="metricSelect" onchange="changeMetric(this.value)">
+                <option value="total" {% if primary_metric == 'total' %}selected{% endif %}>TOTAL</option>
                 {% for m in competition.metrics %}
                 <option value="{{ m }}" {% if m == primary_metric %}selected{% endif %}>{{ m | upper }}</option>
                 {% endfor %}
@@ -127,7 +128,12 @@
                 <tr>
                     <th style="width:48px;">#</th>
                     <th>Team</th>
+                    {% if primary_metric == 'total' %}
+                    <th>Avg Rank</th>
+                    {% for m in competition.metrics %}<th>{{ m | upper }}</th>{% endfor %}
+                    {% else %}
                     <th>Score</th>
+                    {% endif %}
                     <th>Submissions</th>
                     <th>Last Upload</th>
                 </tr>
@@ -137,7 +143,16 @@
                 <tr onclick="window.location='/c/{{ competition.id }}/team/{{ entry.team_id }}'">
                     <td class="rank-cell {% if loop.index <= 3 %}rank-{{ loop.index }}{% endif %}">{{ loop.index }}</td>
                     <td class="team-name-cell">{{ entry.team_name }}</td>
+                    {% if primary_metric == 'total' %}
+                    <td class="score-cell">{{ "%.2f" | format(entry.avg_rank) }}</td>
+                    {% for m in competition.metrics %}
+                    <td class="score-cell" title="{{ m | upper }} rank: #{{ entry.metric_ranks[m] if m in entry.metric_ranks else '-' }}">
+                        {{ "%.4f" | format(entry.metric_scores[m]) if m in entry.metric_scores else '-' }}
+                    </td>
+                    {% endfor %}
+                    {% else %}
                     <td class="score-cell">{{ "%.4f" | format(entry.best_score) }}</td>
+                    {% endif %}
                     <td class="meta-cell">{{ entry.num_submissions }}</td>
                     <td class="meta-cell">{{ entry.last_submission[:16] if entry.last_submission else '-' }}</td>
                 </tr>

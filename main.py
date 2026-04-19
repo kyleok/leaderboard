@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import database as db
+from database import get_leaderboard_total
 from metrics.registry import create_default_registry
 from worker import SubmissionWorker, UPLOAD_DIR, REFERENCE_DIR
 
@@ -137,8 +138,16 @@ async def competition_leaderboard(request: Request, competition_id: int):
     if not competition:
         raise HTTPException(status_code=404, detail="Competition not found")
 
-    primary = competition.get("primary_metric", competition["metrics"][0])
-    leaderboard = db.get_leaderboard(competition_id, primary)
+    metric_param = request.query_params.get("metric", "total")
+    if metric_param == "total":
+        leaderboard = get_leaderboard_total(competition_id)
+        primary = "total"
+    else:
+        primary = metric_param if metric_param in competition["metrics"] else "total"
+        if primary == "total":
+            leaderboard = get_leaderboard_total(competition_id)
+        else:
+            leaderboard = db.get_leaderboard(competition_id, primary)
     my_team = db.get_user_team(competition_id, name) if name else None
 
     return templates.TemplateResponse(request, "leaderboard.html", {
@@ -367,8 +376,11 @@ async def api_leaderboard(competition_id: int, metric: str = None):
     competition = db.get_competition(competition_id)
     if not competition:
         raise HTTPException(status_code=404, detail="Competition not found")
-    metric = metric or competition.get("primary_metric", competition["metrics"][0])
-    leaderboard = db.get_leaderboard(competition_id, metric)
+    metric = metric or "total"
+    if metric == "total":
+        leaderboard = get_leaderboard_total(competition_id)
+    else:
+        leaderboard = db.get_leaderboard(competition_id, metric)
     return {"leaderboard": leaderboard, "metric": metric}
 
 

@@ -430,6 +430,66 @@ def get_leaderboard(competition_id: int, metric_name: str = "fid") -> list[dict]
         return [dict(r) for r in rows]
 
 
+
+def get_leaderboard_total(competition_id: int) -> list[dict]:
+    """Leaderboard ranked by average rank across all metrics."""
+    competition = get_competition(competition_id)
+    if not competition:
+        return []
+    metrics = competition["metrics"]
+
+    with get_db() as db:
+        team_scores = {}
+        team_info = {}
+
+        for metric in metrics:
+            row = db.execute(
+                "SELECT is_higher_better FROM scores WHERE metric_name = ? LIMIT 1", (metric,)
+            ).fetchone()
+            is_higher = bool(row["is_higher_better"]) if row else False
+            agg = "MAX" if is_higher else "MIN"
+            order = "DESC" if is_higher else "ASC"
+
+            sql = f"""
+                SELECT t.id as team_id, t.name as team_name,
+                       {agg}(sc.score) as best_score,
+                       COUNT(DISTINCT s.id) as num_submissions,
+                       MAX(s.submitted_at) as last_submission
+                FROM teams t
+                JOIN submissions s ON s.team_id = t.id AND s.competition_id = ? AND s.status = 'done'
+                JOIN scores sc ON sc.submission_id = s.id AND sc.metric_name = ?
+                WHERE t.competition_id = ? AND t.is_disqualified = 0 AND sc.score >= 0
+                GROUP BY t.id
+                ORDER BY best_score {order}
+            """
+            rows = db.execute(sql, (competition_id, metric, competition_id)).fetchall()
+
+            for rank, r in enumerate(rows, 1):
+                tid = r["team_id"]
+                if tid not in team_scores:
+                    team_scores[tid] = {}
+                    team_info[tid] = {
+                        "team_id": tid,
+                        "team_name": r["team_name"],
+                        "num_submissions": r["num_submissions"],
+                        "last_submission": r["last_submission"],
+                    }
+                team_scores[tid][metric] = {"score": r["best_score"], "rank": rank}
+
+        results = []
+        for tid, scores in team_scores.items():
+            ranks = [scores[m]["rank"] for m in metrics if m in scores]
+            avg_rank = round(sum(ranks) / len(ranks), 2) if ranks else 9999
+            results.append({
+                **team_info[tid],
+                "avg_rank": avg_rank,
+                "metric_scores": {m: scores[m]["score"] for m in metrics if m in scores},
+                "metric_ranks": {m: scores[m]["rank"] for m in metrics if m in scores},
+            })
+
+        results.sort(key=lambda x: x["avg_rank"])
+        return results
+
 def get_queue_position(submission_id: int) -> int:
     """Get position in the processing queue (0 = currently processing)."""
     with get_db() as db:
