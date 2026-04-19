@@ -8,11 +8,19 @@ import shutil
 import zipfile
 from pathlib import Path
 
+import urllib.request
+import json as _json
+import os
+
 from database import (
     get_submission, get_competition, get_reference_dataset,
-    update_submission_status, save_score
+    update_submission_status, save_score, get_leaderboard_total, get_leaderboard,
+    get_team_emails,
 )
 from metrics.registry import MetricRegistry
+
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://n8n:5678/webhook/submission-done")
+MAX_CONCURRENT_WORKERS = int(os.getenv("MAX_CONCURRENT_WORKERS", "2"))
 
 logger = logging.getLogger(__name__)
 
@@ -28,19 +36,22 @@ class SubmissionWorker:
     def __init__(self, registry: MetricRegistry):
         self.registry = registry
         self.queue: asyncio.Queue[int] = asyncio.Queue()
-        self._task: asyncio.Task | None = None
+        self._tasks: list[asyncio.Task] = []
+        self._gpu_sem: asyncio.Semaphore | None = None
 
     def start(self):
-        self._task = asyncio.create_task(self._run())
-        logger.info("Submission worker started")
+        self._gpu_sem = asyncio.Semaphore(MAX_CONCURRENT_WORKERS)
+        self._tasks = [asyncio.create_task(self._run()) for _ in range(MAX_CONCURRENT_WORKERS)]
+        logger.info(f"Submission worker started ({MAX_CONCURRENT_WORKERS} concurrent slots)")
 
     async def stop(self):
-        if self._task:
-            self._task.cancel()
+        for task in self._tasks:
+            task.cancel()
             try:
-                await self._task
+                await task
             except asyncio.CancelledError:
                 pass
+        self._tasks.clear()
         logger.info("Submission worker stopped")
 
     async def enqueue(self, submission_id: int):
@@ -51,7 +62,8 @@ class SubmissionWorker:
         while True:
             submission_id = await self.queue.get()
             try:
-                await self._process(submission_id)
+                async with self._gpu_sem:
+                    await self._process(submission_id)
             except Exception as e:
                 logger.error(f"Submission {submission_id} failed: {e}", exc_info=True)
                 update_submission_status(submission_id, "failed", error_message=str(e)[:500])
@@ -79,7 +91,9 @@ class SubmissionWorker:
 
         # Extract zip
         extract_path = EXTRACT_DIR / str(submission["competition_id"]) / str(submission_id)
-        extract_path.mkdir(parents=True, exist_ok=True)
+        if extract_path.exists():
+            shutil.rmtree(extract_path)
+        extract_path.mkdir(parents=True)
 
         zip_path = Path(submission["file_path"])
         if not zip_path.exists():
@@ -127,7 +141,7 @@ class SubmissionWorker:
                 logger.info(f"Submission {submission_id}: {result.name} = {result.score:.6f}")
             except Exception as e:
                 logger.error(f"Metric {metric_name} failed for submission {submission_id}: {e}")
-                save_score(submission_id, metric_name, float("nan"), False)
+                save_score(submission_id, metric_name, -1.0, False)
 
             update_submission_status(submission_id, "processing",
                                     progress_current=i + 1, progress_total=len(metrics_to_run))
@@ -139,8 +153,52 @@ class SubmissionWorker:
         logger.info(f"Submission {submission_id} processed ({num_images} images, "
                      f"{len(metrics_to_run)} metrics)")
 
-        # Cleanup extracted files (keep zip)
+        # Cleanup extracted files, keep only latest zip per team
         self._cleanup(extract_path)
+        self._cleanup_old_zips(submission["team_id"], submission["competition_id"], submission["file_path"])
+
+        # Notify team members via n8n webhook
+        await self._notify_webhook(submission)
+
+    async def _notify_webhook(self, submission: dict):
+        competition_id = submission["competition_id"]
+        team_id = submission["team_id"]
+        try:
+            emails = get_team_emails(team_id)
+            if not emails:
+                return
+            # Get current scores for this submission
+            fresh = get_submission(submission["id"])
+            scores = {k: round(v["score"], 4) for k, v in fresh.get("scores", {}).items()}
+            # Get rankings
+            total_lb = get_leaderboard_total(competition_id)
+            competition = get_competition(competition_id)
+            metrics = competition["metrics"] if competition else []
+            metric_ranks = {}
+            for m in metrics:
+                lb = get_leaderboard(competition_id, m)
+                for rank, entry in enumerate(lb, 1):
+                    if entry["team_id"] == team_id:
+                        metric_ranks[m] = rank
+                        break
+            total_rank = next((i + 1 for i, e in enumerate(total_lb) if e["team_id"] == team_id), None)
+            payload = {
+                "team_name": submission.get("team_name", ""),
+                "submitted_by": submission.get("submitted_by", ""),
+                "scores": scores,
+                "metric_ranks": metric_ranks,
+                "total_rank": total_rank,
+                "total_teams": len(total_lb),
+            }
+            for email in emails:
+                payload["email"] = email
+                data = _json.dumps(payload).encode()
+                req = urllib.request.Request(N8N_WEBHOOK_URL, data=data,
+                                            headers={"Content-Type": "application/json"})
+                urllib.request.urlopen(req, timeout=5)
+                logger.info(f"Notified {email} via n8n")
+        except Exception as e:
+            logger.warning(f"n8n notification failed: {e}")
 
     @staticmethod
     def _extract_zip(zip_path: Path, extract_path: Path):
@@ -170,3 +228,16 @@ class SubmissionWorker:
             shutil.rmtree(path, ignore_errors=True)
         except Exception as e:
             logger.warning(f"Cleanup failed for {path}: {e}")
+
+    @staticmethod
+    def _cleanup_old_zips(team_id: int, competition_id: int, keep_path: str):
+        team_dir = UPLOAD_DIR / str(competition_id) / str(team_id)
+        if not team_dir.exists():
+            return
+        for zip_file in sorted(team_dir.glob("*.zip")):
+            if str(zip_file) != keep_path:
+                try:
+                    zip_file.unlink()
+                    logger.info(f"Deleted old ZIP: {zip_file.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete old ZIP {zip_file}: {e}")

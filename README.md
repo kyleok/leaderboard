@@ -36,7 +36,7 @@ docker compose up -d --build
 - **Public scoreboard** — no login needed to view rankings
 - **Invite code auth** — instructor shares code, students join in seconds
 - **Team-based** — create or join teams, track submissions per team
-- **Configurable metrics** — FID, IS (Inception Score), LPIPS, KID
+- **Configurable metrics** — FID, IS (Inception Score), KID, TopPR
 - **GPU-accelerated** — runs on NVIDIA GPU if available, falls back to CPU
 - **Rate limiting** — configurable max submissions per team per day
 - **Admin panel** — create competitions, upload reference data, manage teams, re-run scoring
@@ -68,10 +68,11 @@ Without GPU, metrics run on CPU (slower but functional).
 
 | Metric | Direction | Description |
 |--------|-----------|-------------|
-| FID | Lower is better | Frechet Inception Distance |
+| FID | Lower is better | Fréchet Inception Distance |
 | IS | Higher is better | Inception Score |
-| LPIPS | Lower is better | Learned Perceptual Image Patch Similarity |
 | KID | Lower is better | Kernel Inception Distance |
+| TopPR | Higher is better | Top-P & Top-R F1 (fidelity + diversity) |
+| **Total** | Lower avg rank | Average rank across all four metrics (default view) |
 
 ## License
 

@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import database as db
+from database import get_leaderboard_total
 from metrics.registry import create_default_registry
 from worker import SubmissionWorker, UPLOAD_DIR, REFERENCE_DIR
 
@@ -56,6 +57,11 @@ async def lifespan(app: FastAPI):
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
     worker.start()
+    pending = db.get_pending_submissions()
+    for s in pending:
+        await worker.enqueue(s['id'])
+    if pending:
+        logger.info(f'Re-enqueued {len(pending)} pending submissions after restart')
     logger.info("Leaderboard service started")
     yield
     await worker.stop()
@@ -132,8 +138,16 @@ async def competition_leaderboard(request: Request, competition_id: int):
     if not competition:
         raise HTTPException(status_code=404, detail="Competition not found")
 
-    primary = competition.get("primary_metric", competition["metrics"][0])
-    leaderboard = db.get_leaderboard(competition_id, primary)
+    metric_param = request.query_params.get("metric", "total")
+    if metric_param == "total":
+        leaderboard = get_leaderboard_total(competition_id)
+        primary = "total"
+    else:
+        primary = metric_param if metric_param in competition["metrics"] else "total"
+        if primary == "total":
+            leaderboard = get_leaderboard_total(competition_id)
+        else:
+            leaderboard = db.get_leaderboard(competition_id, primary)
     my_team = db.get_user_team(competition_id, name) if name else None
 
     return templates.TemplateResponse(request, "leaderboard.html", {
@@ -240,14 +254,14 @@ async def api_join(request: Request):
 
     if existing_team:
         # Join existing team
-        ok = db.join_team(existing_team["id"], display_name)
+        ok = db.join_team(existing_team["id"], display_name, email=email)
         if not ok:
             raise HTTPException(status_code=400, detail="Already a member of this team")
         team = db.get_team(existing_team["id"])
     else:
         # Create new team
         try:
-            team = db.create_team(competition_id, team_name, "", display_name)
+            team = db.create_team(competition_id, team_name, "", display_name, creator_email=email)
         except Exception as e:
             if "UNIQUE" in str(e):
                 raise HTTPException(status_code=400, detail="Team name already taken")
@@ -362,8 +376,11 @@ async def api_leaderboard(competition_id: int, metric: str = None):
     competition = db.get_competition(competition_id)
     if not competition:
         raise HTTPException(status_code=404, detail="Competition not found")
-    metric = metric or competition.get("primary_metric", competition["metrics"][0])
-    leaderboard = db.get_leaderboard(competition_id, metric)
+    metric = metric or "total"
+    if metric == "total":
+        leaderboard = get_leaderboard_total(competition_id)
+    else:
+        leaderboard = db.get_leaderboard(competition_id, metric)
     return {"leaderboard": leaderboard, "metric": metric}
 
 
