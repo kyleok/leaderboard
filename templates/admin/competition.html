@@ -100,6 +100,7 @@
             <div class="form-group">
                 <label>Primary Metric (for ranking)</label>
                 <select id="primaryMetric">
+                    <option value="total" {% if not competition or competition.primary_metric == "total" %}selected{% endif %}>Total (Avg Rank)</option>
                     {% for m in available_metrics %}
                     <option value="{{ m.name }}" {% if competition and competition.primary_metric == m.name %}selected{% endif %}>{{ m.display_name }}</option>
                     {% endfor %}

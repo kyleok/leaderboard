@@ -8,11 +8,18 @@ import shutil
 import zipfile
 from pathlib import Path
 
+import urllib.request
+import json as _json
+import os
+
 from database import (
     get_submission, get_competition, get_reference_dataset,
-    update_submission_status, save_score
+    update_submission_status, save_score, get_leaderboard_total, get_leaderboard,
+    get_team_emails,
 )
 from metrics.registry import MetricRegistry
+
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://n8n:5678/webhook/submission-done")
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +151,49 @@ class SubmissionWorker:
         # Cleanup extracted files, keep only latest zip per team
         self._cleanup(extract_path)
         self._cleanup_old_zips(submission["team_id"], submission["competition_id"], submission["file_path"])
+
+        # Notify team members via n8n webhook
+        await self._notify_webhook(submission)
+
+    async def _notify_webhook(self, submission: dict):
+        competition_id = submission["competition_id"]
+        team_id = submission["team_id"]
+        try:
+            emails = get_team_emails(team_id)
+            if not emails:
+                return
+            # Get current scores for this submission
+            fresh = get_submission(submission["id"])
+            scores = {k: round(v["score"], 4) for k, v in fresh.get("scores", {}).items()}
+            # Get rankings
+            total_lb = get_leaderboard_total(competition_id)
+            competition = get_competition(competition_id)
+            metrics = competition["metrics"] if competition else []
+            metric_ranks = {}
+            for m in metrics:
+                lb = get_leaderboard(competition_id, m)
+                for rank, entry in enumerate(lb, 1):
+                    if entry["team_id"] == team_id:
+                        metric_ranks[m] = rank
+                        break
+            total_rank = next((i + 1 for i, e in enumerate(total_lb) if e["team_id"] == team_id), None)
+            payload = {
+                "team_name": submission.get("team_name", ""),
+                "submitted_by": submission.get("submitted_by", ""),
+                "scores": scores,
+                "metric_ranks": metric_ranks,
+                "total_rank": total_rank,
+                "total_teams": len(total_lb),
+            }
+            for email in emails:
+                payload["email"] = email
+                data = _json.dumps(payload).encode()
+                req = urllib.request.Request(N8N_WEBHOOK_URL, data=data,
+                                            headers={"Content-Type": "application/json"})
+                urllib.request.urlopen(req, timeout=5)
+                logger.info(f"Notified {email} via n8n")
+        except Exception as e:
+            logger.warning(f"n8n notification failed: {e}")
 
     @staticmethod
     def _extract_zip(zip_path: Path, extract_path: Path):

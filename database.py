@@ -514,3 +514,12 @@ def get_pending_submissions() -> list[dict]:
             "SELECT * FROM submissions WHERE status IN ('queued', 'processing') ORDER BY submitted_at"
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_team_emails(team_id: int) -> list[str]:
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT email FROM team_members WHERE team_id=? AND email IS NOT NULL AND email != ''",
+            (team_id,)
+        ).fetchall()
+    return [r["email"] for r in rows]
