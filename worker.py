@@ -79,7 +79,9 @@ class SubmissionWorker:
 
         # Extract zip
         extract_path = EXTRACT_DIR / str(submission["competition_id"]) / str(submission_id)
-        extract_path.mkdir(parents=True, exist_ok=True)
+        if extract_path.exists():
+            shutil.rmtree(extract_path)
+        extract_path.mkdir(parents=True)
 
         zip_path = Path(submission["file_path"])
         if not zip_path.exists():
@@ -127,7 +129,7 @@ class SubmissionWorker:
                 logger.info(f"Submission {submission_id}: {result.name} = {result.score:.6f}")
             except Exception as e:
                 logger.error(f"Metric {metric_name} failed for submission {submission_id}: {e}")
-                save_score(submission_id, metric_name, float("nan"), False)
+                save_score(submission_id, metric_name, -1.0, False)
 
             update_submission_status(submission_id, "processing",
                                     progress_current=i + 1, progress_total=len(metrics_to_run))
@@ -171,3 +173,16 @@ class SubmissionWorker:
             shutil.rmtree(path, ignore_errors=True)
         except Exception as e:
             logger.warning(f"Cleanup failed for {path}: {e}")
+
+    @staticmethod
+    def _cleanup_old_zips(team_id: int, competition_id: int, keep_path: str):
+        team_dir = UPLOAD_DIR / str(competition_id) / str(team_id)
+        if not team_dir.exists():
+            return
+        for zip_file in sorted(team_dir.glob("*.zip")):
+            if str(zip_file) != keep_path:
+                try:
+                    zip_file.unlink()
+                    logger.info(f"Deleted old ZIP: {zip_file.name}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete old ZIP {zip_file}: {e}")

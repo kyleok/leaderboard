@@ -301,7 +301,8 @@ def create_submission(team_id: int, competition_id: int, file_path: str,
                VALUES (?, ?, ?, ?, ?)""",
             (team_id, competition_id, file_path, num_images, submitted_by)
         )
-        return get_submission(cur.lastrowid)
+        row_id = cur.lastrowid
+    return get_submission(row_id)
 
 
 def get_submission(submission_id: int) -> dict | None:

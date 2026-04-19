@@ -85,7 +85,11 @@ class FIDMetric(MetricBackend):
         ref_images = _load_images(reference_dir)
         _feed_images(fid, ref_images, real=True, transform=_inception_transform(), device=device)
         out = _cache_file(cache_dir, "fid", ".pt")
-        torch.save(fid.state_dict(), out)
+        torch.save({
+            "real_features_sum": fid.real_features_sum.cpu(),
+            "real_features_cov_sum": fid.real_features_cov_sum.cpu(),
+            "real_features_num_samples": fid.real_features_num_samples.cpu(),
+        }, out)
         logger.info(f"FID cache saved: {len(ref_images)} images")
         return out
 
@@ -98,7 +102,10 @@ class FIDMetric(MetricBackend):
         cache = _cache_file(cached_ref_features, "fid", ".pt") if cached_ref_features else None
 
         if cache and cache.exists():
-            fid.load_state_dict(torch.load(cache, map_location=device))
+            cached = torch.load(cache, map_location=device)
+            fid.real_features_sum = cached["real_features_sum"].to(device)
+            fid.real_features_cov_sum = cached["real_features_cov_sum"].to(device)
+            fid.real_features_num_samples = cached["real_features_num_samples"].to(device)
             num_ref = int(fid.real_features_num_samples.item())
             logger.info(f"FID: loaded cache ({num_ref} ref images)")
         else:
@@ -153,8 +160,11 @@ class KIDMetric(MetricBackend):
         kid = KernelInceptionDistance(normalize=True, subset_size=min(1000, len(ref_images))).to(device)
         _feed_images(kid, ref_images, real=True, transform=_inception_transform(), device=device)
         out = _cache_file(cache_dir, "kid", ".pt")
-        torch.save(kid.state_dict(), out)
-        logger.info(f"KID cache saved: {len(ref_images)} images")
+        real_feats = kid.real_features
+        if isinstance(real_feats, list):
+            real_feats = torch.cat(real_feats, dim=0)
+        torch.save(real_feats.cpu(), out)
+        logger.info(f"KID cache saved: {real_feats.shape[0]} images")
         return out
 
     def compute(self, submission_dir: Path, reference_dir: Path,
@@ -167,8 +177,9 @@ class KIDMetric(MetricBackend):
 
         if cache and cache.exists():
             kid = KernelInceptionDistance(normalize=True, subset_size=subset_size).to(device)
-            kid.load_state_dict(torch.load(cache, map_location=device))
-            logger.info("KID: loaded cache")
+            loaded = torch.load(cache, map_location=device).to(device)
+            kid.real_features = [loaded]
+            logger.info(f"KID: loaded cache ({loaded.shape[0]} ref images)")
         else:
             ref_images = _load_images(reference_dir)
             kid = KernelInceptionDistance(normalize=True, subset_size=min(subset_size, len(ref_images))).to(device)
@@ -220,4 +231,3 @@ class TopPRMetric(MetricBackend):
         return MetricResult(name=self.name, score=f1, is_higher_better=self.is_higher_better,
                             metadata={"fidelity": fidelity, "diversity": diversity,
                                       "num_submission": len(sub_images)})
-
