@@ -5,32 +5,29 @@ Runs on GPU (CUDA) with CPU fallback.
 import logging
 from pathlib import Path
 
+import torch
+
 from .base import MetricBackend, MetricResult
 
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE = 32
+
 
 def _get_device():
-    import torch
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def _load_images_as_tensor(image_dir: Path, max_images: int = 50000):
-    """Load images from directory as a list of PIL images."""
+def _load_images(image_dir: Path, max_images: int = 50000):
     from PIL import Image
-
     supported = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
-    paths = sorted(p for p in image_dir.iterdir() if p.suffix.lower() in supported)
+    paths = sorted(p for p in image_dir.iterdir() if p.suffix.lower() in supported)[:max_images]
     if not paths:
         raise ValueError(f"No images found in {image_dir}")
-    paths = paths[:max_images]
     images = []
     for p in paths:
         try:
-            img = Image.open(p).convert("RGB")
-            images.append(img)
+            images.append(Image.open(p).convert("RGB"))
         except Exception as e:
             logger.warning(f"Skipping {p.name}: {e}")
     if not images:
@@ -38,92 +35,94 @@ def _load_images_as_tensor(image_dir: Path, max_images: int = 50000):
     return images
 
 
+def _inception_transform():
+    from torchvision import transforms
+    return transforms.Compose([
+        transforms.Resize((299, 299)),
+        transforms.ToTensor(),
+    ])
+
+
+def _feed_images(metric, images, real: bool, transform, device):
+    for i in range(0, len(images), BATCH_SIZE):
+        batch = images[i:i + BATCH_SIZE]
+        tensors = torch.stack([transform(img) for img in batch]).to(device)
+        if real:
+            metric.update(tensors, real=True)
+        else:
+            metric.update(tensors, real=False)
+
+
 class FIDMetric(MetricBackend):
     """Frechet Inception Distance — lower is better."""
 
     @property
-    def name(self) -> str:
-        return "fid"
+    def name(self): return "fid"
 
     @property
-    def display_name(self) -> str:
-        return "FID"
+    def display_name(self): return "FID"
 
     @property
-    def is_higher_better(self) -> bool:
-        return False
+    def is_higher_better(self): return False
+
+    def cache_reference_features(self, reference_dir: Path, cache_path: Path) -> Path:
+        from torchmetrics.image.fid import FrechetInceptionDistance
+        device = _get_device()
+        fid = FrechetInceptionDistance(normalize=True).to(device)
+        ref_images = _load_images(reference_dir)
+        _feed_images(fid, ref_images, real=True, transform=_inception_transform(), device=device)
+        torch.save(fid.state_dict(), cache_path)
+        logger.info(f"FID reference cache saved: {len(ref_images)} images → {cache_path}")
+        return cache_path
 
     def compute(self, submission_dir: Path, reference_dir: Path,
                 cached_ref_features: Path | None = None) -> MetricResult:
-        import torch
         from torchmetrics.image.fid import FrechetInceptionDistance
-
         device = _get_device()
         fid = FrechetInceptionDistance(normalize=True).to(device)
+        transform = _inception_transform()
 
-        sub_images = _load_images_as_tensor(submission_dir)
-        ref_images = _load_images_as_tensor(reference_dir)
+        if cached_ref_features and Path(cached_ref_features).exists():
+            fid.load_state_dict(torch.load(cached_ref_features, map_location=device))
+            logger.info("FID: loaded cached reference features")
+            num_ref = fid.real_features_num_samples.item()
+        else:
+            ref_images = _load_images(reference_dir)
+            _feed_images(fid, ref_images, real=True, transform=transform, device=device)
+            num_ref = len(ref_images)
 
-        transform = self._get_transform()
-
-        # Process in batches to avoid OOM
-        batch_size = 32
-        for i in range(0, len(ref_images), batch_size):
-            batch = ref_images[i:i + batch_size]
-            tensors = torch.stack([transform(img) for img in batch]).to(device)
-            fid.update(tensors, real=True)
-
-        for i in range(0, len(sub_images), batch_size):
-            batch = sub_images[i:i + batch_size]
-            tensors = torch.stack([transform(img) for img in batch]).to(device)
-            fid.update(tensors, real=False)
+        sub_images = _load_images(submission_dir)
+        _feed_images(fid, sub_images, real=False, transform=transform, device=device)
 
         score = fid.compute().item()
-        logger.info(f"FID: {score:.4f} ({len(sub_images)} vs {len(ref_images)} images)")
+        logger.info(f"FID: {score:.4f} ({len(sub_images)} sub vs {num_ref} ref)")
         return MetricResult(name=self.name, score=score, is_higher_better=self.is_higher_better,
-                            metadata={"num_submission": len(sub_images), "num_reference": len(ref_images)})
-
-    @staticmethod
-    def _get_transform():
-        from torchvision import transforms
-        return transforms.Compose([
-            transforms.Resize((299, 299)),
-            transforms.ToTensor(),
-        ])
+                            metadata={"num_submission": len(sub_images), "num_reference": int(num_ref)})
 
 
 class ISMetric(MetricBackend):
-    """Inception Score — higher is better."""
+    """Inception Score — higher is better. Reference-free."""
 
     @property
-    def name(self) -> str:
-        return "is"
+    def name(self): return "is"
 
     @property
-    def display_name(self) -> str:
-        return "IS"
+    def display_name(self): return "IS"
 
     @property
-    def is_higher_better(self) -> bool:
-        return True
+    def is_higher_better(self): return True
 
     def compute(self, submission_dir: Path, reference_dir: Path,
                 cached_ref_features: Path | None = None) -> MetricResult:
-        import torch
         from torchmetrics.image.inception import InceptionScore
-
         device = _get_device()
         inception = InceptionScore(normalize=True).to(device)
-
-        sub_images = _load_images_as_tensor(submission_dir)
-        transform = FIDMetric._get_transform()
-
-        batch_size = 32
-        for i in range(0, len(sub_images), batch_size):
-            batch = sub_images[i:i + batch_size]
+        sub_images = _load_images(submission_dir)
+        transform = _inception_transform()
+        for i in range(0, len(sub_images), BATCH_SIZE):
+            batch = sub_images[i:i + BATCH_SIZE]
             tensors = torch.stack([transform(img) for img in batch]).to(device)
             inception.update(tensors)
-
         mean, std = inception.compute()
         score = mean.item()
         logger.info(f"IS: {score:.4f} +/- {std.item():.4f} ({len(sub_images)} images)")
@@ -131,108 +130,54 @@ class ISMetric(MetricBackend):
                             metadata={"std": std.item(), "num_images": len(sub_images)})
 
 
-class LPIPSMetric(MetricBackend):
-    """Learned Perceptual Image Patch Similarity — lower is better.
-    Requires paired images (same filenames in submission and reference).
-    """
-
-    @property
-    def name(self) -> str:
-        return "lpips"
-
-    @property
-    def display_name(self) -> str:
-        return "LPIPS"
-
-    @property
-    def is_higher_better(self) -> bool:
-        return False
-
-    def compute(self, submission_dir: Path, reference_dir: Path,
-                cached_ref_features: Path | None = None) -> MetricResult:
-        import torch
-        import lpips
-        from torchvision import transforms
-
-        device = _get_device()
-        loss_fn = lpips.LPIPS(net="alex").to(device)
-
-        transform = transforms.Compose([
-            transforms.Resize((256, 256)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),  # [-1, 1]
-        ])
-
-        from PIL import Image
-        supported = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
-        sub_files = sorted(p for p in submission_dir.iterdir() if p.suffix.lower() in supported)
-        ref_files = {p.stem: p for p in reference_dir.iterdir() if p.suffix.lower() in supported}
-
-        scores = []
-        for sub_path in sub_files:
-            ref_path = ref_files.get(sub_path.stem)
-            if ref_path is None:
-                continue
-            try:
-                sub_img = transform(Image.open(sub_path).convert("RGB")).unsqueeze(0).to(device)
-                ref_img = transform(Image.open(ref_path).convert("RGB")).unsqueeze(0).to(device)
-                with torch.no_grad():
-                    d = loss_fn(sub_img, ref_img)
-                scores.append(d.item())
-            except Exception as e:
-                logger.warning(f"LPIPS skip {sub_path.name}: {e}")
-
-        if not scores:
-            raise ValueError("No matched image pairs found for LPIPS computation")
-
-        avg_score = sum(scores) / len(scores)
-        logger.info(f"LPIPS: {avg_score:.4f} ({len(scores)} pairs)")
-        return MetricResult(name=self.name, score=avg_score, is_higher_better=self.is_higher_better,
-                            metadata={"num_pairs": len(scores)})
-
-
 class KIDMetric(MetricBackend):
     """Kernel Inception Distance — lower is better."""
 
     @property
-    def name(self) -> str:
-        return "kid"
+    def name(self): return "kid"
 
     @property
-    def display_name(self) -> str:
-        return "KID"
+    def display_name(self): return "KID"
 
     @property
-    def is_higher_better(self) -> bool:
-        return False
+    def is_higher_better(self): return False
+
+    def cache_reference_features(self, reference_dir: Path, cache_path: Path) -> Path:
+        from torchmetrics.image.kid import KernelInceptionDistance
+        device = _get_device()
+        ref_images = _load_images(reference_dir)
+        subset_size = min(1000, len(ref_images))
+        kid = KernelInceptionDistance(normalize=True, subset_size=subset_size).to(device)
+        _feed_images(kid, ref_images, real=True, transform=_inception_transform(), device=device)
+        torch.save(kid.state_dict(), cache_path)
+        logger.info(f"KID reference cache saved: {len(ref_images)} images → {cache_path}")
+        return cache_path
 
     def compute(self, submission_dir: Path, reference_dir: Path,
                 cached_ref_features: Path | None = None) -> MetricResult:
-        import torch
         from torchmetrics.image.kid import KernelInceptionDistance
-
         device = _get_device()
-        kid = KernelInceptionDistance(normalize=True, subset_size=min(50, 1000)).to(device)
+        sub_images = _load_images(submission_dir)
+        transform = _inception_transform()
 
-        sub_images = _load_images_as_tensor(submission_dir)
-        ref_images = _load_images_as_tensor(reference_dir)
+        if cached_ref_features and Path(cached_ref_features).exists():
+            # subset_size must be <= min(num_real, num_fake)
+            subset_size = min(1000, len(sub_images))
+            kid = KernelInceptionDistance(normalize=True, subset_size=subset_size).to(device)
+            state = torch.load(cached_ref_features, map_location=device)
+            # Only load real_features from cache
+            kid.load_state_dict(state)
+            logger.info("KID: loaded cached reference features")
+        else:
+            ref_images = _load_images(reference_dir)
+            subset_size = min(1000, len(sub_images), len(ref_images))
+            kid = KernelInceptionDistance(normalize=True, subset_size=subset_size).to(device)
+            _feed_images(kid, ref_images, real=True, transform=transform, device=device)
 
-        transform = FIDMetric._get_transform()
-
-        batch_size = 32
-        for i in range(0, len(ref_images), batch_size):
-            batch = ref_images[i:i + batch_size]
-            tensors = torch.stack([transform(img) for img in batch]).to(device)
-            kid.update(tensors, real=True)
-
-        for i in range(0, len(sub_images), batch_size):
-            batch = sub_images[i:i + batch_size]
-            tensors = torch.stack([transform(img) for img in batch]).to(device)
-            kid.update(tensors, real=False)
+        _feed_images(kid, sub_images, real=False, transform=transform, device=device)
 
         mean, std = kid.compute()
         score = mean.item()
         logger.info(f"KID: {score:.6f} +/- {std.item():.6f}")
         return MetricResult(name=self.name, score=score, is_higher_better=self.is_higher_better,
-                            metadata={"std": std.item(), "num_submission": len(sub_images),
-                                      "num_reference": len(ref_images)})
+                            metadata={"std": std.item(), "num_submission": len(sub_images)})

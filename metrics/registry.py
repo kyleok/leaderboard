@@ -35,10 +35,9 @@ def create_default_registry() -> MetricRegistry:
     """Create a registry with all available local metrics."""
     registry = MetricRegistry()
     try:
-        from .local import FIDMetric, ISMetric, LPIPSMetric, KIDMetric
+        from .local import FIDMetric, ISMetric, KIDMetric
         registry.register(FIDMetric())
         registry.register(ISMetric())
-        registry.register(LPIPSMetric())
         registry.register(KIDMetric())
     except ImportError as e:
         logger.warning(f"Some metrics unavailable (missing dependencies): {e}")
