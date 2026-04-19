@@ -56,6 +56,11 @@ async def lifespan(app: FastAPI):
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
     worker.start()
+    pending = db.get_pending_submissions()
+    for s in pending:
+        await worker.enqueue(s['id'])
+    if pending:
+        logger.info(f'Re-enqueued {len(pending)} pending submissions after restart')
     logger.info("Leaderboard service started")
     yield
     await worker.stop()

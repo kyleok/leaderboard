@@ -439,3 +439,11 @@ def delete_submission(submission_id: int):
     with get_db() as db:
         db.execute("DELETE FROM scores WHERE submission_id = ?", (submission_id,))
         db.execute("DELETE FROM submissions WHERE id = ?", (submission_id,))
+
+
+def get_pending_submissions() -> list[dict]:
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM submissions WHERE status IN ('queued', 'processing') ORDER BY submitted_at"
+        ).fetchall()
+        return [dict(r) for r in rows]
