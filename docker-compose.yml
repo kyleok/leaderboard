@@ -16,7 +16,7 @@ services:
       - ./static:/app/static
     # GPU support: requires nvidia-container-toolkit
     # Uncomment for GPU-accelerated metrics (FID, IS, etc.)
-    # runtime: nvidia
+    runtime: nvidia
 
 volumes:
   leaderboard-data:
