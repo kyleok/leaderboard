@@ -12,6 +12,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - leaderboard-data:/app/data
+      - /home/rlagkdus705/celebvhq_ref:/app/data/references/celebvhq:ro
       - ./templates:/app/templates
       - ./static:/app/static
     # GPU support: requires nvidia-container-toolkit
