@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir --break-system-packages     fastapi     uvicorn  
 COPY main.py .
 COPY database.py .
 COPY worker.py .
+COPY precache_reference.py .
 COPY metrics/ metrics/
 COPY templates/ templates/
 COPY static/ static/
