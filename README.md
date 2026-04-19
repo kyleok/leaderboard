@@ -1,6 +1,6 @@
 # Leaderboard
 
-Image generation competition leaderboard for university lectures. Students form teams, upload zips of generated images, and compete on metrics like FID, IS, LPIPS, and KID.
+Image generation competition leaderboard for university lectures. Students form teams, upload zips of generated images, and compete on metrics like FID, IS, KID and TopPR.
 
 ## Quick Start
 
