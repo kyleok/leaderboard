@@ -62,7 +62,7 @@ def _extract_inception_features(images, device) -> np.ndarray:
         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
     ])
 
-    inception = models.inception_v3(weights="DEFAULT", aux_logits=False)
+    inception = models.inception_v3(weights="DEFAULT")
     inception.fc = torch.nn.Identity()
     inception.eval().to(device)
 
