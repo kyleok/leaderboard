@@ -1,0 +1,105 @@
+DGM Spring 2026 - Face Generation Challenge
+============================================================
+
+OVERVIEW
+
+As part of the Deep Generative Models course, you will participate in a
+face image generation competition.
+Your goal is to train a generative model and submit 1,000 generated face
+images to the leaderboard.
+Teams are evaluated on four metrics and ranked by their combined (average)
+rank across all metrics.
+
+Leaderboard: https://leaderboard.lait-lab.com
+
+------------------------------------------------------------
+SCHEDULE
+
+  Start                   : April 20, 2026
+  End                     : June 10, 2026
+  Max submissions per day : 4
+
+------------------------------------------------------------
+HOW TO JOIN
+
+This is an individual competition - each student participates as a solo team.
+
+  1. Visit https://leaderboard.lait-lab.com
+  2. Enter the following information:
+       - Invite code   : xUf8hxhX
+       - Team name     : use your own name in Firstname_Lastname format
+                         (e.g., Hayeon_Kim, Jaejun_Yoo)
+       - Display name  : same as your team name is fine
+       - Email (optional): if provided, you will receive an email with your
+                           scores after each submission
+  3. Click "Join" - you're in!
+
+  NOTE: If you close the browser and come back, just enter the same invite
+        code and your team name again - your session will be restored.
+
+  IMPORTANT: Team name is permanent. You cannot change it after joining,
+             so please type it carefully.
+
+------------------------------------------------------------
+SUBMISSION FORMAT
+
+  - A single .zip file containing your generated images
+  - Images must be JPEG or PNG format
+  - Minimum resolution: 64x64 (higher is better - reference is 256x256)
+  - Exactly 1,000 images recommended (maximum allowed: 1,000)
+  - Maximum file size: 200 MB
+  - Do NOT include subfolders inside the zip - place images directly at root
+
+  Example zip structure:
+    submission.zip
+    |-- img_0000.jpg
+    |-- img_0001.jpg
+    |-- ...
+    |-- img_0999.jpg
+
+------------------------------------------------------------
+EVALUATION METRICS
+
+Your submission is compared against 32,550 real face images from CelebV-HQ.
+
+  Metric  | Direction | What it measures
+  --------|-----------|-----------------------------------------------
+  FID     | Lower     | Feature distribution distance (overall quality)
+  IS      | Higher    | Image quality and diversity (Inception Score)
+  KID     | Lower     | Kernel-based distribution distance (unbiased FID)
+  TopPR   | Higher    | Fidelity + diversity balance (Top-P & Top-R F1)
+  Total   | Lower     | Average rank across all four metrics (FINAL RANK)
+
+The Total rank is computed as the average of your rank on each metric.
+Lower average rank = better overall performance.
+
+------------------------------------------------------------
+TIPS
+
+  - View rankings per metric (FID / IS / KID / TopPR) via dropdown on the
+    leaderboard
+  - Scores update within ~1 minute of submission
+  - Only your best score per metric is shown on the leaderboard
+  - Previous ZIP files are automatically deleted - only latest is stored
+  - Scores of -1 on a metric indicate a processing error (usually too few
+    images)
+
+------------------------------------------------------------
+FAQ
+
+Q: Can I submit solo?
+A: Yes. Just create a team with your own name.
+
+Q: Can I change my team?
+A: No - once you join a team, you cannot switch. Choose carefully.
+
+Q: What if my submission fails?
+A: Check the leaderboard for an error message under your submission.
+   Common issues: wrong file format, fewer than 2 images, or file too large.
+
+Q: Do I need a GPU to generate images?
+A: For training, yes. The leaderboard server handles evaluation - you just
+   need to submit a ZIP.
+
+------------------------------------------------------------
+For questions, contact the course TA.

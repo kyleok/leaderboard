@@ -230,6 +230,8 @@ async def api_join(request: Request):
     if len(team_name) > 50:
         raise HTTPException(status_code=400, detail="Team name too long (max 50)")
 
+    email = data.get("email", "").strip() or None
+
     # Validate invite code against competition
     competition = db.get_competition_by_invite(invite_code)
     if not competition:

@@ -30,7 +30,7 @@ This is an **individual competition** — each student participates as a solo te
 2. Enter the following information:
    - **Invite code:** `xUf8hxhX`
    - **Team name:** use your own name in `Firstname_Lastname` format
-     (e.g., `Hayeon_Kim`, `Jinho_Lee`)
+     (e.g., `Hayeon_Kim`, `Jaejun_Yoo`)
    - **Display name:** same as your team name is fine
    - **Email** *(optional)*: if provided, you will receive an email with your scores after each submission
 3. Click **Join** — you're in!
